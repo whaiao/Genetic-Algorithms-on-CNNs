@@ -93,5 +93,7 @@ class ModelFromDecoding(nn.Module):
         dim = x.shape[1] * x.shape[2] * x.shape[3]
         x = x.view(-1, dim).to(self.device)
         fc = nn.Linear(x.shape[-1], 10).to(self.device)
-        x = fc(x).to(self.device)
-        return self.softmax(x).to(self.device)
+        return F.relu(fc(x)).to(self.device)
+        # x = fc(x).to(self.device)
+        # return self.softmax(x).to(self.device)
+        # return x

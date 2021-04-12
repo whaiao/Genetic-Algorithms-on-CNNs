@@ -46,7 +46,8 @@ class GA():
             self.individuals.append(enc[:-1])
 
     def calc_fitness(self):
-        trainset, _ = get_train_valid_loader('./data/', 64, False, 42, num_workers=1, pin_memory=True)
+        trainset, _ = get_train_valid_loader('./data/', 128, True, 42, num_workers=1, pin_memory=True)
+        # don't apply softmax
         criterion = nn.CrossEntropyLoss()
         for i in self.individuals:
             if i not in self.fitness.keys(): 
@@ -135,3 +136,6 @@ class GA():
 if __name__ == '__main__':
     p = GA()
     p.run()
+    
+    with open('results.pickle', 'wb') as f:
+        pickle.dump(p, f)
