@@ -1,5 +1,4 @@
 # coding utf-8
-from functools import reduce
 import numpy as np
 import torch
 import torch.nn as nn
@@ -10,10 +9,11 @@ import torch.optim as optim
 
 # add seperate classes for skip connections
 class SkipConnect(nn.Module):
-    def __init__(self, c_in, c_out):
+    def __init__(self, c_in, c_out, device):
         super(SkipConnect, self).__init__()
         self.c_in = c_in
         self.c_out = c_out
+        self.device = device
         self.filter_size = (3, 3)
         self.conv_stride = (1, 1)
         self.conv = nn.Conv2d(self.c_in, self.c_out, self.filter_size,
@@ -43,15 +43,14 @@ class SkipConnect(nn.Module):
         pad_left = pad_along_width // 2
         pad_right = pad_along_width - pad_left
 
-        return F.pad(x, (pad_left, pad_right, pad_top, pad_bottom))
+        return F.pad(x, (pad_left, pad_right, pad_top, pad_bottom)).to(self.device)
 
     def forward(self, x):
-        x = self.padding(x)
-        res = x
+        x = x.to(self.device)
+        x = self.padding(x).to(self.device)
         out = self.conv(x)
         out = self.bn(out)
         out = self.relu(out)
-        # out += res
         return out
 
 
@@ -61,6 +60,7 @@ class ModelFromDecoding(nn.Module):
                  device: torch.device,
                  encoding_scheme: str = 'cnn'):
         super(ModelFromDecoding, self).__init__()
+        self.device = device
         self.architecture = []
         self.enc = encoding
 
@@ -72,13 +72,13 @@ class ModelFromDecoding(nn.Module):
 
     def _encode(self):
         prev = 16
-        conv = SkipConnect(3, 16)
+        conv = SkipConnect(3, 16, self.device)
         self.architecture.append(conv)
         for m in self.enc.split('-'):
             if m == '-': continue
             m = float(m) if '.' in m else int(m)
             if isinstance(m, int):
-                conv = SkipConnect(prev, m)
+                conv = SkipConnect(prev, m, self.device)
                 prev = m
                 self.architecture.append(conv)
             if isinstance(m, float):
@@ -89,9 +89,9 @@ class ModelFromDecoding(nn.Module):
                 self.architecture.append(pool)
 
     def forward(self, x):
-        x = self.net(x)
+        x = self.net(x).to(self.device)
         dim = x.shape[1] * x.shape[2] * x.shape[3]
-        x = x.view(-1, dim)
-        fc = nn.Linear(x.shape[-1], 10)
-        x = fc(x)
-        return self.softmax(x)
+        x = x.view(-1, dim).to(self.device)
+        fc = nn.Linear(x.shape[-1], 10).to(self.device)
+        x = fc(x).to(self.device)
+        return self.softmax(x).to(self.device)

@@ -15,8 +15,8 @@ from mutation import MUTATION_OPERATIONS
 class GA():
     def __init__(self,
                  n_individuals: int = 10,
-                 cnn_depth: int = 10,
-                 stopping_criteria: int = 5):
+                 cnn_depth: int = 50,
+                 stopping_criteria: int = 10):
         self.n_individuals = n_individuals
         self.cnn_depth = cnn_depth
         self.generations = 0
@@ -46,15 +46,17 @@ class GA():
             self.individuals.append(enc[:-1])
 
     def calc_fitness(self):
-        trainset, _ = get_train_valid_loader('./data/', 128, False, 42)
+        trainset, _ = get_train_valid_loader('./data/', 64, False, 42, num_workers=1, pin_memory=True)
         criterion = nn.CrossEntropyLoss()
         for i in self.individuals:
+            if i not in self.fitness.keys(): 
+                self.fitness[i] = None
             if self.fitness[i] is not None: continue
-            model = ModelFromDecoding(i, self.device)
+            model = ModelFromDecoding(i, self.device).to(self.device)
             self.fitness[i] = train(model,
                                     criterion,
                                     trainset,
-                                    epochs=50,
+                                    epochs=10,
                                     device=self.device)
 
     def generate_offsprings(self, p_crossover: float, p_mutation: float,
@@ -62,8 +64,8 @@ class GA():
         offsprings = []
         while len(offsprings) < len(self.individuals):
             p1, p2 = random.choices(self.individuals, k=2)
-            # if self.fitness[p1] < self.fitness[p2]:
-            # p1, p2 = p2, p1
+            if self.fitness[p1] < self.fitness[p2]:
+                p1, p2 = p2, p1
             while p1 == p2:
                 p1, p2 = random.choices(self.individuals, k=2)
             r = random.uniform(0., 1.)
@@ -89,7 +91,7 @@ class GA():
                   add_n_to_population: int = 2,
                   get_fittest: bool = False):
         def remove_individual(least_fittest: str):
-            self.population.pop(least_fittest)
+            self.individuals.pop(least_fittest)
             del self.fitness[least_fittest]
 
         next_generation = []
@@ -100,14 +102,18 @@ class GA():
 
         least_fittest = fittest[rank[-1]]
         fittest = fittest[rank[0]]
-        remove_individual(least_fittest)
-        include = random.choices(self.offsprings, k=add_n_to_population)
-        next_generation.extend(self.population)
+        # remove_individual(least_fittest)
+        a, b = random.choices(self.offsprings, k=add_n_to_population)
+        while a == b:
+            a, b = random.choices(self.offsprings, k=add_n_to_population)
+        next_generation.extend(self.individuals)
 
-        for i in include:
-            next_generation.append(i)
+        next_generation.append(a)
+        next_generation.append(b)
+        # for i in include:
+        #     next_generation.append(i)
 
-        self.population = next_generation
+        self.individuals = next_generation
         self.offsprings.clear()
 
         if get_fittest:
@@ -115,7 +121,6 @@ class GA():
 
     def run(self):
         while self.generations < self.stopping:
-
             print(f'Generation: {self.generations+1}')
             self.calc_fitness()
             print('Current Fitness: ', self.fitness)
@@ -124,6 +129,7 @@ class GA():
                                      MUTATION_OPERATIONS)
             self.selection()
             self.generations += 1
+            print('Next gen: ', self.individuals)
 
 
 if __name__ == '__main__':

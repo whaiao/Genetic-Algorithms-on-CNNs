@@ -7,19 +7,20 @@ from data import LABEL_NAMES
 
 def train(model: nn.Module, criterion, data, epochs, device):
     model.train()
-    optimizer = torch.optim.SGD(model.parameters(),
-                                lr=0.001,
-                                momentum=0.9,
-                                weight_decay=5e-4)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
-                                                           T_max=200)
-    train_loss = 0
+    optimizer = torch.optim.AdamW(model.parameters())
+    #optimizer = torch.optim.SGD(model.parameters(),
+    #                            lr=0.001,
+    #                            momentum=0.9,
+    #                            weight_decay=5e-4)
+    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
+                                                           # T_max=200)
     correct = 0
     total = 0
 
     fitness = 0
     for epoch in range(epochs):
-        print('Epoch: ', epoch)
+        print('Epoch: ', epoch+1)
+        train_loss = 0
         for batch, (img, target) in enumerate(data):
             img, target = img.to(device), target.to(device)
             optimizer.zero_grad()
@@ -27,11 +28,12 @@ def train(model: nn.Module, criterion, data, epochs, device):
             loss = criterion(pred, target)
             loss.backward()
             optimizer.step()
-            scheduler.step()
+            #scheduler.step()
 
             train_loss += loss.item()
             _, predicted = torch.max(pred.data, 1)
             total += target.size(0)
+            #if batch 
             correct += (predicted == target).sum().item()
             acc = round(100. * correct / total, 2)
 
@@ -40,7 +42,7 @@ def train(model: nn.Module, criterion, data, epochs, device):
             )
         fitness = acc if acc > fitness else fitness
         print(
-            f'Epoch: {epoch+1} of {len(epochs)+1}\tAcc: {acc}\tLoss: {round(train_loss/(batch+1))}'
+            f'Epoch: {epoch+1} of {epochs}\tAcc: {acc}\tLoss: {round(train_loss/(batch+1))}'
         )
 
     return fitness
