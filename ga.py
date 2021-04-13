@@ -1,4 +1,5 @@
 from typing import List
+from pprint import pprint
 import random
 import pickle
 
@@ -15,8 +16,8 @@ from mutation import MUTATION_OPERATIONS
 class GA():
     def __init__(self,
                  n_individuals: int = 10,
-                 cnn_depth: int = 50,
-                 stopping_criteria: int = 10):
+                 cnn_depth: int = 32,
+                 stopping_criteria: int = 20):
         self.n_individuals = n_individuals
         self.cnn_depth = cnn_depth
         self.generations = 0
@@ -46,7 +47,7 @@ class GA():
             self.individuals.append(enc[:-1])
 
     def calc_fitness(self):
-        trainset, _ = get_train_valid_loader('./data/', 128, True, 42, num_workers=1, pin_memory=True)
+        trainset, _ = get_train_valid_loader('./data/', 64, True, 42, num_workers=1, pin_memory=True)
         # don't apply softmax
         criterion = nn.CrossEntropyLoss()
         for i in self.individuals:
@@ -57,7 +58,7 @@ class GA():
             self.fitness[i] = train(model,
                                     criterion,
                                     trainset,
-                                    epochs=10,
+                                    epochs=5,
                                     device=self.device)
 
     def generate_offsprings(self, p_crossover: float, p_mutation: float,
@@ -89,10 +90,11 @@ class GA():
         self.offsprings.extend(offsprings)
 
     def selection(self,
-                  add_n_to_population: int = 2,
+                  add_n_to_population: int = 4,
+                  remove_n_weakest: int = 4,
                   get_fittest: bool = False):
         def remove_individual(least_fittest: str):
-            self.individuals.pop(least_fittest)
+            self.individuals.remove(least_fittest)
             del self.fitness[least_fittest]
 
         next_generation = []
@@ -101,18 +103,20 @@ class GA():
             sorted(self.fitness.items(), key=lambda i: i[1], reverse=True))
         rank = list(fittest.keys())
 
-        least_fittest = fittest[rank[-1]]
-        fittest = fittest[rank[0]]
-        # remove_individual(least_fittest)
-        a, b = random.choices(self.offsprings, k=add_n_to_population)
-        while a == b:
-            a, b = random.choices(self.offsprings, k=add_n_to_population)
-        next_generation.extend(self.individuals)
+        for w in range(1, remove_n_weakest):
+            rmv = rank[-w]
+            remove_individual(rmv)
 
-        next_generation.append(a)
-        next_generation.append(b)
-        # for i in include:
-        #     next_generation.append(i)
+        for _ in range(add_n_to_population):
+            a, b = random.choices(self.offsprings, k=2)
+            while a == b:
+                a, b = random.choices(self.offsprings, k=2)
+            next_generation.append(a)
+            next_generation.append(b)
+        
+        individuals_2be = rank[:len(rank)//2]  # select the upper best performing for next generation
+        next_generation.extend(individuals_2be)
+
 
         self.individuals = next_generation
         self.offsprings.clear()
@@ -124,13 +128,15 @@ class GA():
         while self.generations < self.stopping:
             print(f'Generation: {self.generations+1}')
             self.calc_fitness()
-            print('Current Fitness: ', self.fitness)
+            print('Current Fitness:')
+            pprint(self.fitness)
             self.generate_offsprings(random.uniform(0., 1.),
                                      random.uniform(0., 1.),
                                      MUTATION_OPERATIONS)
             self.selection()
             self.generations += 1
-            print('Next gen: ', self.individuals)
+            print('Next gen: ')
+            pprint(self.individuals)
 
 
 if __name__ == '__main__':
