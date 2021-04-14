@@ -15,9 +15,9 @@ from mutation import MUTATION_OPERATIONS
 
 class GA():
     def __init__(self,
-                 n_individuals: int = 10,
-                 cnn_depth: int = 32,
-                 stopping_criteria: int = 20):
+                 n_individuals: int = 8,
+                 cnn_depth: int = 10,
+                 stopping_criteria: int = 100):
         self.n_individuals = n_individuals
         self.cnn_depth = cnn_depth
         self.generations = 0
@@ -26,20 +26,21 @@ class GA():
         self.offsprings = []
         self._generate_new_population()
         self.fitness = {s: None for s in self.individuals}
+        self.history = {}
         self.device = torch.device(
             'cuda') if torch.cuda.is_available() else torch.device('cpu')
 
     def _generate_new_population(self):
-        # choices = [32, 64, 128, 256, 512]
+        choices = [64, 128, 256, 512]
         for _ in range(self.n_individuals):
             enc = ''
             for _ in range(self.cnn_depth):
                 spec = random.uniform(0., 1.)
                 if spec < 0.5:
-                    conv_1 = str(random.randint(1, 512))
-                    conv_2 = str(random.randint(1, 512))
-                    # conv_1 = str(random.choice(choices))
-                    # conv_2 = str(random.choice(choices))
+                    #conv_1 = str(random.randint(1, 512))
+                    #conv_2 = str(random.randint(1, 512))
+                    conv_1 = str(random.choice(choices))
+                    conv_2 = str(random.choice(choices))
                     enc += f'{conv_1}-{conv_2}-'
                 else:
                     oracle = str(round(random.uniform(0., 1.), 1))
@@ -55,11 +56,13 @@ class GA():
                 self.fitness[i] = None
             if self.fitness[i] is not None: continue
             model = ModelFromDecoding(i, self.device).to(self.device)
+            epochs = 2 if self.generations < (self.stopping // 2) else 10  # let model evolve faster in the start and train longer in the end
             self.fitness[i] = train(model,
                                     criterion,
                                     trainset,
-                                    epochs=5,
+                                    epochs=epochs,
                                     device=self.device)
+        self.history[self.generations] = self.fitness
 
     def generate_offsprings(self, p_crossover: float, p_mutation: float,
                             mutation_operations: list):
@@ -90,12 +93,15 @@ class GA():
         self.offsprings.extend(offsprings)
 
     def selection(self,
-                  add_n_to_population: int = 4,
+                  add_n_to_population: int = 5,
                   remove_n_weakest: int = 4,
                   get_fittest: bool = False):
         def remove_individual(least_fittest: str):
-            self.individuals.remove(least_fittest)
-            del self.fitness[least_fittest]
+            if least_fittest in self.individuals:
+                self.individuals.remove(least_fittest)
+                del self.fitness[least_fittest]
+            else:
+                return 
 
         next_generation = []
 
@@ -135,13 +141,12 @@ class GA():
                                      MUTATION_OPERATIONS)
             self.selection()
             self.generations += 1
-            print('Next gen: ')
-            pprint(self.individuals)
+            # print('Next gen: ')
+            # pprint(self.individuals)
 
 
 if __name__ == '__main__':
     p = GA()
     p.run()
-    
-    with open('results.pickle', 'wb') as f:
+    with open('results-pref100gen.pickle', 'wb') as f:
         pickle.dump(p, f)

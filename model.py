@@ -72,7 +72,7 @@ class ModelFromDecoding(nn.Module):
 
     def _encode(self):
         prev = 16
-        conv = SkipConnect(3, 16, self.device)
+        conv = SkipConnect(3, prev, self.device)
         self.architecture.append(conv)
         for m in self.enc.split('-'):
             if m == '-': continue

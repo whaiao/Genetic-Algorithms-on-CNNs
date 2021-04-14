@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from torchsummary import summary
+
 from data import LABEL_NAMES
 
 def accuracy(output, target, topk=(1,)):
@@ -16,9 +18,10 @@ def accuracy(output, target, topk=(1,)):
         for k in topk:
             correct_k = correct[:k].view(-1).float().sum(0, keepdim=True)
             return correct_k.mul_(100.0 / batch_size).item()
-        # return res
 
 def train(model: nn.Module, criterion, data, epochs, device):
+    sample, _ = list(data)[0]
+    summary(model.cuda(), input_size=sample.shape[1:])
     model.train()
     optimizer = torch.optim.AdamW(model.parameters())
     #optimizer = torch.optim.SGD(model.parameters(),
@@ -27,8 +30,6 @@ def train(model: nn.Module, criterion, data, epochs, device):
     #                            weight_decay=5e-4)
     # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
                                                            # T_max=200)
-    correct = 0
-    total = 0
 
     fitness = 0
     for epoch in range(epochs):
@@ -48,10 +49,10 @@ def train(model: nn.Module, criterion, data, epochs, device):
             train_loss += loss
             acc = accuracy(pred, target)
             highest_acc = acc if acc > highest_acc else highest_acc
-            print(
-                f'Batch: {batch} of {len(data)}\tAcc: {acc}\tLoss: {round(loss, 2)}'
-            )
-        fitness = acc if acc > fitness else fitness
+            #print(
+            #    f'Batch: {batch} of {len(data)}\tAcc: {acc}\tLoss: {round(loss, 2)}'
+            #)
+        fitness = highest_acc if highest_acc > fitness else fitness
         print(
             f'Epoch: {epoch+1} of {epochs}\tAcc: {highest_acc}\tLoss: {round(train_loss/len(data), 2)}'
         )
