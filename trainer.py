@@ -3,10 +3,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from torchsummary import summary
+from torch.utils.data import Dataset
 
 from data import LABEL_NAMES
 
-def accuracy(output, target, topk=(1,)):
+
+def accuracy(output, target, topk=(1, )):
     """Computes the accuracy over the k top predictions for the specified values of k"""
     with torch.no_grad():
         maxk = max(topk)
@@ -19,21 +21,30 @@ def accuracy(output, target, topk=(1,)):
             correct_k = correct[:k].view(-1).float().sum(0, keepdim=True)
             return correct_k.mul_(100.0 / batch_size).item()
 
-def train(model: nn.Module, criterion, data, epochs, device):
+
+def train(model: nn.Module, criterion: nn.Module, data: Dataset, epochs: int,
+          device: torch.device) -> float:
+    """
+    Training loop for model
+
+    Args:
+        model (nn.Module): Neural net
+        criterion (nn.Module): Loss function
+        data (Dataset): Training data
+        epochs (int): Number of epochs
+        device (torch.device): Device to train model
+
+    Returns:
+        float: fitness value according to accuracy
+    """
     sample, _ = list(data)[0]
     summary(model.cuda(), input_size=sample.shape[1:])
     model.train()
     optimizer = torch.optim.AdamW(model.parameters())
-    #optimizer = torch.optim.SGD(model.parameters(),
-    #                            lr=0.001,
-    #                            momentum=0.9,
-    #                            weight_decay=5e-4)
-    # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
-                                                           # T_max=200)
 
     fitness = 0
     for epoch in range(epochs):
-        print('Epoch: ', epoch+1)
+        print('Epoch: ', epoch + 1)
         train_loss = 0
         highest_acc = 0
         for batch, (img, target) in enumerate(data):
@@ -43,7 +54,6 @@ def train(model: nn.Module, criterion, data, epochs, device):
             loss = criterion(pred, target)
             loss.backward()
             optimizer.step()
-            #scheduler.step()
 
             loss = loss.item() * img.size(0)
             train_loss += loss

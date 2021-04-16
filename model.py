@@ -1,16 +1,30 @@
 # coding utf-8
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import torch.nn.utils as utils
-import torch.optim as optim
+from torch import Tensor
+"""
+Defines layers used in networks
+"""
 
 
-# add seperate classes for skip connections
-class SkipConnect(nn.Module):
-    def __init__(self, c_in, c_out, device):
-        super(SkipConnect, self).__init__()
+class ConvolutionBlock(nn.Module):
+    """
+    Convolution block defined by encoding
+
+    Args:
+        nn (CNN): Convolution block
+    """
+    def __init__(self, c_in: int, c_out: int, device: torch.device):
+        """
+        Initialize ConvolutionBlock
+
+        Args:
+            c_in (int): Input channels
+            c_out (int): Output channels
+            device (torch.device): Device to move model to
+        """
+        super(ConvolutionBlock, self).__init__()
         self.c_in = c_in
         self.c_out = c_out
         self.device = device
@@ -21,7 +35,16 @@ class SkipConnect(nn.Module):
         self.bn = nn.BatchNorm2d(self.c_out)
         self.relu = nn.ReLU()
 
-    def padding(self, x):
+    def padding(self, x: Tensor) -> Tensor:
+        """
+        Calculates padding sizes
+
+        Args:
+            x (Tensor): Input Tensor
+
+        Returns:
+            Tensor: Torch Tensor
+        """
         in_height, in_width = x.shape[2:]
         filter_height, filter_width = 3, 3
         strides = (None, 1, 1)
@@ -43,9 +66,10 @@ class SkipConnect(nn.Module):
         pad_left = pad_along_width // 2
         pad_right = pad_along_width - pad_left
 
-        return F.pad(x, (pad_left, pad_right, pad_top, pad_bottom)).to(self.device)
+        return F.pad(x, (pad_left, pad_right, pad_top, pad_bottom)).to(
+            self.device)
 
-    def forward(self, x):
+    def forward(self, x: Tensor):
         x = x.to(self.device)
         x = self.padding(x).to(self.device)
         out = self.conv(x)
@@ -55,30 +79,39 @@ class SkipConnect(nn.Module):
 
 
 class ModelFromDecoding(nn.Module):
-    def __init__(self,
-                 encoding: str,
-                 device: torch.device,
-                 encoding_scheme: str = 'cnn'):
+    """
+    String decoder which builds nn
+    """
+    def __init__(self, encoding: str, device: torch.device):
+        """Initialization
+
+        Args:
+            encoding (str): String reprensentation of NN
+            device (torch.device): Device to put model on
+        """
         super(ModelFromDecoding, self).__init__()
         self.device = device
         self.architecture = []
         self.enc = encoding
 
         self.kernel_size = self.pool_stride = (2, 2)
-        self._encode()
+        self._decode()
         self.softmax = nn.Softmax(0)
 
         self.net = nn.Sequential(*self.architecture)
 
-    def _encode(self):
+    def _decode(self):
+        """
+        Decodes string and creates architecture
+        """
         prev = 16
-        conv = SkipConnect(3, prev, self.device)
+        conv = ConvolutionBlock(3, prev, self.device)
         self.architecture.append(conv)
         for m in self.enc.split('-'):
             if m == '-': continue
             m = float(m) if '.' in m else int(m)
             if isinstance(m, int):
-                conv = SkipConnect(prev, m, self.device)
+                conv = ConvolutionBlock(prev, m, self.device)
                 prev = m
                 self.architecture.append(conv)
             if isinstance(m, float):
@@ -92,8 +125,6 @@ class ModelFromDecoding(nn.Module):
         x = self.net(x).to(self.device)
         dim = x.shape[1] * x.shape[2] * x.shape[3]
         x = x.view(-1, dim).to(self.device)
-        fc = nn.Linear(x.shape[-1], 10).to(self.device)
+        fc = nn.Linear(x.shape[-1],
+                       10).to(self.device)  # to project dims onto n-classes
         return F.relu(fc(x)).to(self.device)
-        # x = fc(x).to(self.device)
-        # return self.softmax(x).to(self.device)
-        # return x
